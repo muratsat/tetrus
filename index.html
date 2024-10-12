@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+
+  <body>
+    <script>
+      const players = new Map();
+
+      const updatePlayers = () => {
+        const element = document.getElementById("players");
+        element.innerHTML = "";
+        players.forEach((player, id) => {
+          element.innerHTML += `<li>${player.username} (${id})</li>`;
+        });
+      };
+
+      const addPlayer = ({ id, username }) => {
+        console.log("Add player", id, username);
+        players.set(id, { id, username });
+        console.log("Players:", players);
+        updatePlayers();
+      };
+
+      const removePlayer = ({ id }) => {
+        players.delete(id);
+        updatePlayers();
+      };
+
+      function initWebSocket() {
+        const socket = new WebSocket("/ws");
+        socket.onopen = (event) => {
+          console.log("Connected to websocket");
+          document.getElementById("lobby").style.display = "flex";
+        };
+
+        socket.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          switch (msg.type) {
+            case "welcome":
+              console.log("Welcome:", msg.data);
+              msg.data.players.forEach((player) => {
+                addPlayer({ id: player.id, username: player.username });
+              });
+              break;
+
+            case "player_connected":
+              console.log("Player connected:", msg.data);
+              addPlayer({ id: msg.data.id, username: msg.data.username });
+              break;
+
+            case "player_disconnected":
+              removePlayer({ id: msg.data.id });
+              break;
+          }
+        };
+        socket.onclose = (event) => {
+          console.log("Connection to websocket closed");
+          document.getElementById("lobby").style.display = "none";
+          document.getElementById("error-disconnected").style.display = "flex";
+        };
+        return socket;
+      }
+
+      function main() {
+        const socket = initWebSocket();
+
+        document.addEventListener("keydown", (event) => {
+          const registeredKeys = [
+            "ArrowUp",
+            "ArrowDown",
+            "ArrowLeft",
+            "ArrowRight",
+            " ",
+            "z",
+            "x",
+          ];
+          if (registeredKeys.includes(event.key)) {
+            console.log("Sending message:", event.key);
+            socket.send(JSON.stringify({ key: event.key }));
+          }
+        });
+      }
+
+      document.addEventListener("DOMContentLoaded", main);
+    </script>
+
+    <main class="flex flex-col items-center min-h-[100dvh] p-4 gap-4">
+      <h1 class="text-3xl font-bold">Tetrus</h1>
+      <div
+        id="lobby"
+        class="flex-col justify-center w-full max-w-md gap-3"
+        style="display: none"
+      >
+        <h1 class="text-3xl font-bold">Connected</h1>
+        <ul id="players" class="list-disc list-inside"></ul>
+      </div>
+
+      <div
+        id="error-disconnected"
+        class="flex-col justify-center w-full max-w-md"
+        style="display: none"
+      >
+        <h1 class="text-3xl font-bold">Disconnected</h1>
+        <p>You have been disconnected from the server.</p>
+        <p>Please try refreshing the page</p>
+      </div>
+    </main>
+  </body>
+</html>
