@@ -277,6 +277,12 @@ class Game:
         self.players[client_id] = Player(client_id)
 
     def remove_player(self, client_id: int):
+        piece = self.players[client_id].piece
+        if piece:
+            for dy in range(len(piece.shape)):
+                for dx in range(len(piece.shape[dy])):
+                    if piece.shape[dy][dx] != 0:
+                        self.board[piece.y + dy][piece.x + dx] = 0
         self.players.pop(client_id)
 
     def update_player(self, client_id: int, username: str | None, ready: bool | None):
@@ -311,7 +317,7 @@ class Lobby:
         elif message["type"] == "move":
             if self.game.state != "RUNNING":
                 return
-            if message["data"]["direction"] == "ArrowLeft" or message["data"]["direction"] == "ArrowRight":
+            if message["data"]["direction"] == "ArrowLeft" or message["data"]["direction"] == "ArrowRight" or message["data"]["direction"] == "ArrowDown":
                 self.game.player_move(client_id, message["data"]["direction"])
             elif message["data"]["direction"] == "z" or message["data"]["direction"] == "x":
                 self.game.player_rotate(client_id, message["data"]["direction"])
