@@ -1,3 +1,6 @@
+import asyncio
+import threading
+import time
 from typing import Dict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
@@ -24,8 +27,8 @@ class ConnectionManager:
         self.active_connections[client_id] = websocket
         self.next_client_id += 1
         self.client_id[client_ip] = client_id
-        self.lobby.add_player(client_id)
-        player = self.lobby.players[client_id]
+        self.lobby.game.add_player(client_id)
+        player = self.lobby.game.players[client_id]
 
         await self.send_personal_message(client_id=client_id, message={
             "type": "welcome",
@@ -33,7 +36,7 @@ class ConnectionManager:
                 "client_id": player.id,
                 "username": player.username,
                 "players": [
-                    {"id": player.id, "username": player.username, "ready": player.ready} for player in self.lobby.players.values()
+                    {"id": player.id, "username": player.username, "ready": player.ready} for player in self.lobby.game.players.values()
                 ]
             }
         })
@@ -52,9 +55,11 @@ class ConnectionManager:
 
     async def disconnect(self, client_ip):
         client_id = self.get_client_id(client_ip)
-        self.lobby.remove_player(client_id)
-        self.active_connections.pop(client_id)
+        if client_id is None:
+            return
         self.client_id.pop(client_ip)
+        self.lobby.game.remove_player(client_id)
+        self.active_connections.pop(client_id)
 
         await manager.broadcast({
             "type": "player_disconnected",
@@ -74,6 +79,36 @@ class ConnectionManager:
             await connection.send_json(message)
 
 
+    UPDATES_PER_SECOND = 60
+
+    def _state_broadcasting_loop(self):
+        while self.lobby.game.state == "RUNNING":
+            time.sleep(1 / self.UPDATES_PER_SECOND)
+            asyncio.run(self.broadcast({
+                "type": "state_update",
+                "data": self.lobby.game.current_state()
+            }))
+
+        asyncio.run(self.broadcast({
+            "type": "game_over",
+            "data": {
+                "players": [
+                    {
+                        "id": player.id, 
+                        "username": player.username, 
+                        "ready": player.ready
+                    } 
+                    for player in self.lobby.game.players.values()
+                ]
+            }
+        }))
+
+
+    def start_state_broadcasting(self):
+        self.state_broadcasting_thread = threading.Thread(target=self._state_broadcasting_loop)
+        self.state_broadcasting_thread.start()
+
+
 manager = ConnectionManager()
 
 
@@ -89,6 +124,22 @@ async def websocket_endpoint(websocket: WebSocket):
             response = manager.lobby.handle_message(client_id, data)
             if response and response["type"] == "broadcast":
                 await manager.broadcast(response["data"])
+
+            if manager.lobby.game.state == "READY":
+                manager.lobby.game.state = "RUNNING"
+                for count in range(3, 0, -1):
+                    await asyncio.sleep(1)
+                    await manager.broadcast({
+                        "type": "countdown",
+                        "data": {
+                            "count": count
+                        }
+                    })
+                updates_per_second = 60
+
+                manager.lobby.game.start()
+                manager.start_state_broadcasting()
+
 
     except WebSocketDisconnect:
         await manager.disconnect(client_ip=ip)

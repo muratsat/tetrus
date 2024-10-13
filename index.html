@@ -14,7 +14,7 @@
       style="display: none"
     >
       <div
-        class="w-full lg:w-1/4 bg-red-50 p-4 rounded-lg shadow-md flex flex-col gap-1"
+        class="w-full max-w-md bg-red-50 p-4 rounded-lg shadow-md flex flex-col gap-1"
       >
         <h1 class="text-xl font-bold">Error</h1>
         <p id="errorMessage"></p>
@@ -96,6 +96,11 @@
       </div>
     </main>
 
+    <pre
+      id="game-state"
+      class="w-full lg:w-1/2 bg-white p-4 rounded-lg shadow-md flex justify-center items-center"
+    ></pre>
+
     <script>
       const players = new Map();
       let myId = null;
@@ -103,6 +108,18 @@
       function setPlayer({ id, username, ready }) {
         const prev = players.get(id);
         players.set(id, { id, username, ready });
+      }
+
+      function setCountDown(seconds) {
+        const modal = document.getElementById("countdown-modal");
+        modal.style.display = "flex";
+        const countdownText = document.getElementById("countdown-text");
+        countdownText.innerHTML = seconds;
+        if (seconds === 1) {
+          setTimeout(() => {
+            modal.style.display = "none";
+          }, 1000);
+        }
       }
 
       function renderPlayersList() {
@@ -146,7 +163,7 @@
       }
 
       function handleServerMessage(msg) {
-        console.log("Server:", msg);
+        // console.log("Server:", msg);
         switch (msg.type) {
           case "welcome":
             document.getElementById("username").value = msg.data.username;
@@ -183,6 +200,28 @@
           case "chat_message":
             addChatMessage(msg.data.username, msg.data.message_text);
             break;
+          case "countdown":
+            setCountDown(msg.data.count);
+            break;
+          case "state_update":
+            // console.log(JSON.stringify(msg.data, null, 2));
+            document.getElementById("game-state").innerHTML = JSON.stringify(
+              msg.data,
+              null,
+              2
+            );
+            break;
+          case "game_over":
+            console.log("Game over", msg.data.players);
+            msg.data.players.forEach((player) =>
+              setPlayer({
+                id: player.id,
+                username: player.username,
+                ready: player.ready,
+              })
+            );
+            renderPlayersList();
+            break;
         }
       }
 
@@ -215,7 +254,6 @@
         const socket = initWebSocket();
 
         const editUser = ({ username, ready }) => {
-          console.log("Editing user", { username, ready });
           socket.send(
             JSON.stringify({
               type: "edit_user",
@@ -262,24 +300,39 @@
             chatInput.value = "";
           });
 
-        // document.addEventListener("keydown", (event) => {
-        //   const registeredKeys = [
-        //     "ArrowUp",
-        //     "ArrowDown",
-        //     "ArrowLeft",
-        //     "ArrowRight",
-        //     " ",
-        //     "z",
-        //     "x",
-        //   ];
-        //   if (registeredKeys.includes(event.key)) {
-        //     console.log("Sending message:", event.key);
-        //     socket.send(JSON.stringify({ key: event.key }));
-        //   }
-        // });
+        document.addEventListener("keydown", (event) => {
+          const registeredKeys = [
+            "ArrowUp",
+            "ArrowDown",
+            "ArrowLeft",
+            "ArrowRight",
+            // " ",
+            // "z",
+            // "x",
+          ];
+
+          if (registeredKeys.includes(event.key)) {
+            socket.send(
+              JSON.stringify({ type: "move", data: { direction: event.key } })
+            );
+          }
+        });
       }
 
       document.addEventListener("DOMContentLoaded", main);
     </script>
+    <div
+      id="countdown-modal"
+      style="display: none"
+      class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50"
+    >
+      <div class="bg-white rounded-md p-4 shadow-lg flex flex-col gap-2">
+        <h1 class="text-xl font-bold">Game stars in</h1>
+        <div class="flex flex-row items-center gap-2">
+          <span id="countdown-text" class="text-3xl font-bold"></span>
+          <span class="text-xl font-bold">seconds</span>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
