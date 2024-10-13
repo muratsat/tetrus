@@ -9,8 +9,15 @@
 
   <body>
     <script>
-      function toast(message) {
-        alert(message);
+      function addMessage(client_id, message) {
+        document.getElementById("messages-container").innerHTML += `
+          <div class="flex flex-row items-center gap-2 w-full flex-wrap">
+            <img src="https://nft-avatars.fly.dev/${client_id}" class="w-10 h-10 rounded-full" />
+            <div class="flex flex-col">
+              <p class="text-sm">${message}</p>
+            </div>
+          </div>
+        `;
       }
 
       function initWebSocket() {
@@ -24,38 +31,21 @@
         socket.onmessage = (event) => {
           const msg = JSON.parse(event.data);
 
-          if (msg.type === "message") {
-            console.log("Message:", msg.data);
-            document.getElementById("messages-container").innerHTML += `
-              <div class="flex flex-row items-center gap-2 w-full flex-wrap">
-                <img src="https://nft-avatars.fly.dev/${msg.data.client_id}" class="w-10 h-10 rounded-full" />
-                <div class="flex flex-col">
-                  <p class="text-sm">${msg.data.message}</p>
-                </div>
-              </div>
-            `;
+          if (msg.type === "chat_message") {
+            console.log("Chat message:", msg.data);
+            addMessage(msg.data.client_id, msg.data.message_text);
           } else if (msg.type === "player_connected") {
-            document.getElementById("messages-container").innerHTML += `
-              <div class="flex flex-row items-center gap-2 w-full flex-wrap">
-                <img src="https://nft-avatars.fly.dev/${
-                  msg.data.client_id
-                }" class="w-10 h-10 rounded-full" />
-                <div class="flex flex-col">
-                  <p class="text-sm">${`Player ${msg.data.client_id} connected`}</p>
-                </div>
-              </div>
-            `;
+            addMessage(
+              msg.data.client_id,
+              `Player ${msg.data.client_id} connected`
+            );
+            console.log("Connected:", msg.data);
           } else if (msg.type === "player_disconnected") {
-            document.getElementById("messages-container").innerHTML += `
-              <div class="flex flex-row items-center gap-2 w-full flex-wrap">
-                <img src="https://nft-avatars.fly.dev/${
-                  msg.data.client_id
-                }" class="w-10 h-10 rounded-full" />
-                <div class="flex flex-col">
-                  <p class="text-sm">${`Player ${msg.data.client_id} disconnected`}</p>
-                </div>
-              </div>
-            `;
+            addMessage(
+              msg.data.client_id,
+              `Player ${msg.data.client_id} disconnected`
+            );
+            console.log("Disconnected:", msg.data);
           }
         };
         socket.onclose = (event) => {
@@ -73,7 +63,14 @@
           .getElementById("chat-form")
           .addEventListener("submit", (event) => {
             event.preventDefault();
-            socket.send(document.getElementById("message").value);
+            socket.send(
+              JSON.stringify({
+                type: "chat_message",
+                data: {
+                  message_text: document.getElementById("message").value,
+                },
+              })
+            );
             document.getElementById("message").value = "";
           });
 

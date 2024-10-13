@@ -12,67 +12,45 @@ def read_root():
 
 
 class ConnectionManager:
-
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.active_connections: Dict[int, WebSocket] = {}
         self.next_client_id = 1
+        self.lobby = Lobby()
         self.client_id: Dict[str, int] = {}
 
     async def connect(self, websocket: WebSocket, client_ip: str):
         await websocket.accept()
-        self.active_connections.append(websocket)
-        self.client_id[client_ip] = self.next_client_id
+        client_id = self.next_client_id
+        self.active_connections[client_id] = websocket
         self.next_client_id += 1
-        self.broadcast({
+        self.client_id[client_ip] = client_id
+        self.lobby.add_player(client_id)
+
+        await self.send_personal_message(client_id=client_id, message={
+            "type": "welcome",
+            "data": {
+                "client_id": client_id,
+                "players": [
+                    {"id": player.id, "username": player.username} for player in self.lobby.players.values()
+                ]
+            }
+        })
+
+        await self.broadcast({
             "type": "player_connected",
             "data": {
-                "client_id": self.client_id[client_ip],
+                "client_id": client_id
             }
         })
 
     def get_client_id(self, client_ip: str):
         return self.client_id.get(client_ip)
 
-    def disconnect(self, websocket: WebSocket, client_ip):
-        self.active_connections.remove(websocket)
-        client_id = self.client_id.get(client_ip)
+    async def disconnect(self, client_ip):
+        client_id = self.get_client_id(client_ip)
+        self.lobby.remove_player(client_id)
+        self.active_connections.pop(client_id)
         self.client_id.pop(client_ip)
-
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        await websocket.send_text(message)
-
-    async def broadcast(self, message):
-        for connection in self.active_connections:
-            await connection.send_json(message)
-
-
-manager = ConnectionManager()
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    ip = f"{websocket.client.host}:{websocket.client.port}"
-    await manager.connect(websocket, client_ip=ip)
-    client_id = manager.get_client_id(ip)
-    await manager.broadcast({
-        "type": "player_connected",
-        "data": {
-            "client_id": client_id
-        }
-    })
-
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await manager.broadcast({
-                "type": "message",
-                "data": {
-                    "client_id": client_id,
-                    "message": data
-                }
-            })
-
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, client_ip=ip)
 
         await manager.broadcast({
             "type": "player_disconnected",
@@ -80,3 +58,33 @@ async def websocket_endpoint(websocket: WebSocket):
                 "client_id": client_id
             }
         })
+
+    async def send_personal_message(self, client_id, message):
+        websocket = self.active_connections.get(client_id)
+        print("Sending message to client", client_id, message)
+        if websocket:
+            await websocket.send_json(message)
+
+    async def broadcast(self, message):
+        for _, connection in self.active_connections.items():
+            await connection.send_json(message)
+
+
+manager = ConnectionManager()
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    ip = f"{websocket.client.host}:{websocket.client.port}"
+    await manager.connect(websocket, client_ip=ip)
+    client_id = manager.get_client_id(ip)
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            response = manager.lobby.handle_message(client_id, data)
+            if response and response["type"] == "broadcast":
+                await manager.broadcast(response["data"])
+
+    except WebSocketDisconnect:
+        await manager.disconnect(client_ip=ip)
