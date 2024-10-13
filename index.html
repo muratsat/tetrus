@@ -7,17 +7,157 @@
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
 
-  <body>
-    <script>
-      function addMessage(client_id, message) {
-        document.getElementById("messages-container").innerHTML += `
-          <div class="flex flex-row items-center gap-2 w-full flex-wrap">
-            <img src="https://nft-avatars.fly.dev/${client_id}" class="w-10 h-10 rounded-full" />
-            <div class="flex flex-col">
-              <p class="text-sm">${message}</p>
-            </div>
+  <body class="bg-gray-100">
+    <main class="p-4 min-h-[100dvh]">
+      <h1 class="text-3xl font-bold mb-4 text-center">TetrUs</h1>
+      <div class="flex flex-col lg:flex-row gap-4">
+        <!-- Players List -->
+        <div
+          class="w-full lg:w-1/4 bg-white p-4 rounded-lg shadow-md flex flex-col gap-3"
+        >
+          <h2 class="text-xl font-semibold mb-2">Players</h2>
+          <ul id="playersList" class="space-y-2 flex-grow overflow-y-auto">
+            <!-- Players will be added here dynamically -->
+          </ul>
+          <form id="editUsername" class="flex">
+            <input
+              type="text"
+              id="username"
+              class="flex-grow border rounded-l px-2 py-1 disabled:text-gray-400"
+              placeholder="Username"
+            />
+            <button
+              type="submit"
+              class="bg-blue-500 text-white px-4 py-1 rounded-r disabled:bg-gray-500"
+            >
+              Change
+            </button>
+          </form>
+          <form id="readyForm" class="flex">
+            <button
+              id="readyButton"
+              class="bg-blue-500 text-white px-4 py-1 w-full rounded"
+            >
+              Ready
+            </button>
+          </form>
+        </div>
+
+        <!-- Game Canvas -->
+        <div
+          class="w-full lg:w-1/2 bg-white p-4 rounded-lg shadow-md flex justify-center items-center"
+        >
+          <canvas
+            id="tetrisCanvas"
+            width="300"
+            height="600"
+            class="border border-gray-300"
+          ></canvas>
+        </div>
+
+        <!-- Chat -->
+        <div
+          class="w-full lg:w-1/4 bg-white p-4 rounded-lg shadow-md flex flex-col"
+        >
+          <h2 class="text-xl font-semibold mb-2">Chat</h2>
+          <div
+            id="chatMessages"
+            class="flex-grow overflow-y-auto mb-2 space-y-2"
+          >
+            <!-- Chat messages will be added here dynamically -->
           </div>
-        `;
+          <form class="flex" id="chatForm">
+            <input
+              type="text"
+              id="chatInput"
+              class="flex-grow border rounded-l px-2 py-1"
+              placeholder="Type a message..."
+            />
+            <button
+              type="submit"
+              class="bg-blue-500 text-white px-4 py-1 rounded-r"
+            >
+              Send
+            </button>
+          </form>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const players = new Map();
+      let myId = null;
+
+      function setPlayer({ id, username, ready }) {
+        const prev = players.get(id);
+        players.set(id, { id, username, ready });
+      }
+
+      function renderPlayersList() {
+        const list = document.getElementById("playersList");
+        list.innerHTML = "";
+        players.forEach((player, id) => {
+          const li = document.createElement("li");
+          li.className = "flex justify-between items-center";
+          li.innerHTML = `
+                    <span>${player.username}${
+            player.id === myId ? " (You)" : ""
+          }</span>
+                    <span class="${
+                      player.ready ? "text-green-500" : "text-red-500"
+                    }">${player.ready ? "Ready" : "Not Ready"}</span>
+                `;
+          list.appendChild(li);
+        });
+      }
+
+      function addChatMessage(username, message) {
+        const div = document.createElement("div");
+        div.className = "bg-gray-100 p-2 rounded";
+        div.innerHTML = `<strong>${username}:</strong> ${message}`;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      function handleServerMessage(msg) {
+        console.log("Server:", msg);
+        switch (msg.type) {
+          case "welcome":
+            document.getElementById("username").value = msg.data.username;
+            myId = msg.data.client_id;
+            msg.data.players.forEach((player) =>
+              setPlayer({
+                id: player.id,
+                username: player.username,
+                ready: player.ready,
+              })
+            );
+            renderPlayersList();
+            break;
+          case "player_connected":
+            setPlayer({
+              id: msg.data.id,
+              username: msg.data.username,
+              ready: msg.data.ready,
+            });
+            renderPlayersList();
+            break;
+          case "player_disconnected":
+            players.delete(msg.data.client_id);
+            renderPlayersList();
+            break;
+          case "player_updated":
+            setPlayer({
+              id: msg.data.id,
+              username: msg.data.username,
+              ready: msg.data.ready,
+            });
+            renderPlayersList();
+            break;
+          case "chat_message":
+            addChatMessage(msg.data.username, msg.data.message_text);
+            break;
+        }
       }
 
       function initWebSocket() {
@@ -25,33 +165,18 @@
         const socket = new WebSocket("/ws");
         socket.onopen = (event) => {
           console.log("Connected to websocket");
-          document.getElementById("lobby").style.display = "flex";
         };
 
         socket.onmessage = (event) => {
-          const msg = JSON.parse(event.data);
-
-          if (msg.type === "chat_message") {
-            console.log("Chat message:", msg.data);
-            addMessage(msg.data.client_id, msg.data.message_text);
-          } else if (msg.type === "player_connected") {
-            addMessage(
-              msg.data.client_id,
-              `Player ${msg.data.client_id} connected`
-            );
-            console.log("Connected:", msg.data);
-          } else if (msg.type === "player_disconnected") {
-            addMessage(
-              msg.data.client_id,
-              `Player ${msg.data.client_id} disconnected`
-            );
-            console.log("Disconnected:", msg.data);
+          try {
+            const msg = JSON.parse(event.data);
+            handleServerMessage(msg);
+          } catch (error) {
+            console.error("Error parsing message:", error);
           }
         };
         socket.onclose = (event) => {
           console.log("Connection to websocket closed");
-          document.getElementById("lobby").style.display = "none";
-          document.getElementById("error-disconnected").style.display = "flex";
         };
         return socket;
       }
@@ -59,11 +184,42 @@
       function main() {
         const socket = initWebSocket();
 
+        const editUser = ({ username, ready }) => {
+          console.log("Editing user", { username, ready });
+          socket.send(
+            JSON.stringify({
+              type: "edit_user",
+              data: {
+                username,
+                ready,
+              },
+            })
+          );
+        };
+
         document
-          .getElementById("chat-form")
+          .getElementById("readyForm")
           .addEventListener("submit", (event) => {
             event.preventDefault();
-            const messageText = document.getElementById("message").value;
+            const me = players.get(myId);
+            editUser({ ready: !me.ready, username: me.username });
+          });
+
+        document
+          .getElementById("editUsername")
+          .addEventListener("submit", (event) => {
+            event.preventDefault();
+            const username = document.getElementById("username").value;
+            editUser({ username, ready: false });
+          });
+
+        document
+          .getElementById("chatForm")
+          .addEventListener("submit", (event) => {
+            event.preventDefault();
+            const chatInput = document.getElementById("chatInput");
+            const messageText = chatInput.value;
+            console.log(messageText);
             if (messageText !== "")
               socket.send(
                 JSON.stringify({
@@ -73,8 +229,7 @@
                   },
                 })
               );
-
-            document.getElementById("message").value = "";
+            chatInput.value = "";
           });
 
         // document.addEventListener("keydown", (event) => {
@@ -96,49 +251,5 @@
 
       document.addEventListener("DOMContentLoaded", main);
     </script>
-
-    <main class="flex flex-col items-center min-h-[100dvh] p-4 gap-4">
-      <h1 class="text-3xl font-bold">Tetrus</h1>
-      <div
-        id="lobby"
-        class="flex-col justify-center w-full max-w-md gap-3"
-        style="display: none"
-      >
-        <h1 class="text-3xl font-bold">Connected</h1>
-        <div
-          id="chat-box"
-          class="flex flex-col justify-center w-full max-w-md gap-3"
-        >
-          <div
-            id="messages-container"
-            class="flex flex-col items-center gap-2 h-56 overflow-y-auto"
-          ></div>
-          <form id="chat-form" class="flex flex-row items-center gap-2 w-full">
-            <input
-              id="message"
-              type="text"
-              placeholder="Message"
-              class="border rounded p-2 w-full"
-            />
-            <button
-              id="send-message"
-              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Send
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <div
-        id="error-disconnected"
-        class="flex-col justify-center w-full max-w-md"
-        style="display: none"
-      >
-        <h1 class="text-3xl font-bold">Disconnected</h1>
-        <p>You have been disconnected from the server.</p>
-        <p>Please try refreshing the page</p>
-      </div>
-    </main>
   </body>
 </html>

@@ -35,7 +35,7 @@ def random_name():
 
     random_item = lambda arr: arr[random.randint(0, len(arr) - 1)]
     random_num = lambda: random.randint(1000, 9999)
-    return f"{random_item(adjectives)}-{random_item(nouns)}-{random_num()}"
+    return f"{random_item(adjectives)}_{random_item(nouns)}"
 
 
 class Player:
@@ -71,8 +71,24 @@ class Lobby:
                 "data": {
                     "type": "chat_message",
                     "data": {
-                        "client_id": client_id,
+                        "id": client_id,
+                        "username": self.players[client_id].username,
                         "message_text": message["data"]["message_text"],
+                    }
+                }
+            }
+        
+        if message["type"] == "edit_user":
+            self.players[client_id].username = message["data"]["username"]
+            self.players[client_id].ready = message["data"]["ready"]
+            return {
+                "type": "broadcast",
+                "data": {
+                    "type": "player_updated",
+                    "data": {
+                        "id": client_id,
+                        "username": self.players[client_id].username,
+                        "ready": self.players[client_id].ready,
                     }
                 }
             }

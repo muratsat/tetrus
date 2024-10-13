@@ -25,13 +25,15 @@ class ConnectionManager:
         self.next_client_id += 1
         self.client_id[client_ip] = client_id
         self.lobby.add_player(client_id)
+        player = self.lobby.players[client_id]
 
         await self.send_personal_message(client_id=client_id, message={
             "type": "welcome",
             "data": {
-                "client_id": client_id,
+                "client_id": player.id,
+                "username": player.username,
                 "players": [
-                    {"id": player.id, "username": player.username} for player in self.lobby.players.values()
+                    {"id": player.id, "username": player.username, "ready": player.ready} for player in self.lobby.players.values()
                 ]
             }
         })
@@ -39,7 +41,9 @@ class ConnectionManager:
         await self.broadcast({
             "type": "player_connected",
             "data": {
-                "client_id": client_id
+                "id": player.id,
+                "username": player.username,
+                "ready": player.ready
             }
         })
 
