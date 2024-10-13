@@ -96,29 +96,73 @@
       </div>
     </main>
 
-    <pre
-      id="game-state"
-      class="w-full lg:w-1/2 bg-white p-4 rounded-lg shadow-md flex justify-center items-center"
-    ></pre>
-
     <script>
       const players = new Map();
       let myId = null;
+
+      // shape colors for each player (reserve 50 colors for good contrast on a white background)
+      PLAYER_COLORS = [
+        "#FF5733", //  Bright Red
+        "#33A1FD", //  Bright Blue
+        "#33FF57", //  Bright Green
+        "#B233FD", //  Bright Purple
+        "#FD33A1", //  Bright Pink
+        "#FFA533", //  Bright Orange
+        "#33FDF0", //  Bright Cyan
+        "#7F33FD", //  Bright Indigo
+        "#FD3333", //  Bright Crimson
+        "#33FD33", //  Lime Green
+        "#3357FF", //  Royal Blue
+        "#FF33F5", //  Hot Pink
+        "#FF8C33", //  Coral
+        "#33FFAA", //  Spring Green
+        "#AA33FF", //  Electric Purple
+        "#FF3380", //  Deep Pink
+      ];
+
+      const ROWS = 20;
+      const COLUMNS = 10;
+
+      EMPTY_BOARD = Array(ROWS)
+        .fill()
+        .map(() => Array(COLUMNS).fill(0));
+
+      function drawBoard(board) {
+        const canvas = document.getElementById("tetrisCanvas");
+        const ctx = canvas.getContext("2d");
+        const scale = 30;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLUMNS; x++) {
+            ctx.fillStyle =
+              board[y][x] === 0 ? "#eee" : PLAYER_COLORS.at(board[y][x]);
+            ctx.strokeStyle = board[y][x] === 0 ? "#aaa" : "black";
+            ctx.fillRect(x * scale, y * scale, scale, scale);
+            ctx.strokeRect(x * scale, y * scale, scale, scale);
+          }
+        }
+      }
 
       function setPlayer({ id, username, ready }) {
         const prev = players.get(id);
         players.set(id, { id, username, ready });
       }
 
+      function setModalText(text) {
+        const modalText = document.getElementById("modal-text");
+        modalText.innerHTML = text;
+      }
+
+      function setModalVisible(visible) {
+        const modal = document.getElementById("modal");
+        modal.style.display = visible ? "flex" : "none";
+      }
+
       function setCountDown(seconds) {
-        const modal = document.getElementById("countdown-modal");
-        modal.style.display = "flex";
-        const countdownText = document.getElementById("countdown-text");
-        countdownText.innerHTML = seconds;
+        setModalVisible(true);
+        setModalText(`Game stars in ${seconds} seconds`);
         if (seconds === 1) {
-          setTimeout(() => {
-            modal.style.display = "none";
-          }, 1000);
+          setModalVisible(false);
         }
       }
 
@@ -134,15 +178,17 @@
           }`;
 
           li.innerHTML = `
-            <div class="flex items-center gap-2">
-              <img src=${imgUrl} class="w-10 h-10 rounded-full bg-gray-200" />
-              <span>${label}</span>
-            </div>
-            <span 
-              class="${player.ready ? "text-green-500" : "text-red-500"}">
-              ${player.ready ? "Ready" : "Not Ready"}
-            </span>
-                `;
+                  <div class="flex items-center gap-2">
+                    <img src=${imgUrl} class="w-10 h-10 rounded-full bg-gray-200" />
+                    <span class="text-[${PLAYER_COLORS.at(
+                      player.id % PLAYER_COLORS.length
+                    )}]">${label}</span>
+                  </div>
+                  <span
+                    class="${player.ready ? "text-green-500" : "text-red-500"}">
+                    ${player.ready ? "Ready" : "Not Ready"}
+                  </span>
+                      `;
           list.appendChild(li);
         });
       }
@@ -152,12 +198,12 @@
         div.className = "bg-gray-100 p-2 rounded flex flex-col gap-1";
         const imgUrl = `https://nft-avatars.fly.dev/${username}`;
         div.innerHTML = `
-          <div class="flex items-center gap-2">
-            <img src=${imgUrl} class="w-8 h-8 rounded-full bg-gray-200" />
-            <strong>${username}</strong>
-          </div>
-          <p class="text-lg ml-10">${message}</p>
-        `;
+                <div class="flex items-center gap-2">
+                  <img src=${imgUrl} class="w-8 h-8 rounded-full bg-gray-200" />
+                  <strong>${username}</strong>
+                </div>
+                <p class="text-lg ml-10">${message}</p>
+              `;
         chatMessages.appendChild(div);
         chatMessages.scrollTop = chatMessages.scrollHeight;
       }
@@ -204,12 +250,7 @@
             setCountDown(msg.data.count);
             break;
           case "state_update":
-            // console.log(JSON.stringify(msg.data, null, 2));
-            document.getElementById("game-state").innerHTML = JSON.stringify(
-              msg.data,
-              null,
-              2
-            );
+            drawBoard(msg.data.board);
             break;
           case "game_over":
             console.log("Game over", msg.data.players);
@@ -221,6 +262,14 @@
               })
             );
             renderPlayersList();
+
+            setModalText("Game over");
+            setModalVisible(true);
+            setTimeout(() => {
+              setModalVisible(false);
+              drawBoard(EMPTY_BOARD);
+            }, 2000);
+
             break;
         }
       }
@@ -251,6 +300,7 @@
       }
 
       function main() {
+        drawBoard(EMPTY_BOARD);
         const socket = initWebSocket();
 
         const editUser = ({ username, ready }) => {
@@ -307,8 +357,8 @@
             "ArrowLeft",
             "ArrowRight",
             // " ",
-            // "z",
-            // "x",
+            "z",
+            "x",
           ];
 
           if (registeredKeys.includes(event.key)) {
@@ -322,16 +372,12 @@
       document.addEventListener("DOMContentLoaded", main);
     </script>
     <div
-      id="countdown-modal"
+      id="modal"
       style="display: none"
       class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50"
     >
-      <div class="bg-white rounded-md p-4 shadow-lg flex flex-col gap-2">
-        <h1 class="text-xl font-bold">Game stars in</h1>
-        <div class="flex flex-row items-center gap-2">
-          <span id="countdown-text" class="text-3xl font-bold"></span>
-          <span class="text-xl font-bold">seconds</span>
-        </div>
+      <div class="bg-white rounded-md p-4 shadow-lg flex flex-col gap-2 w-md">
+        <span id="modal-text" class="text-3xl font-bold"> Modal </span>
       </div>
     </div>
   </body>
