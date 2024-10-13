@@ -33,7 +33,7 @@ def random_name():
       "Kozu",
     ]
 
-    random_item = lambda arr: arr[random.randint(0, len(arr) - 1)]
+    random_item = lambda arr: arr[random.SystemRandom().randint(0, len(arr) - 1)]
     random_num = lambda: random.randint(1000, 9999)
     return f"{random_item(adjectives)}_{random_item(nouns)}"
 

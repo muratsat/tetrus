@@ -16,7 +16,7 @@
           class="w-full lg:w-1/4 bg-white p-4 rounded-lg shadow-md flex flex-col gap-3"
         >
           <h2 class="text-xl font-semibold mb-2">Players</h2>
-          <ul id="playersList" class="space-y-2 flex-grow overflow-y-auto">
+          <ul id="playersList" class="space-y-3 flex-grow overflow-y-auto">
             <!-- Players will be added here dynamically -->
           </ul>
           <form id="editUsername" class="flex">
@@ -99,13 +99,20 @@
         players.forEach((player, id) => {
           const li = document.createElement("li");
           li.className = "flex justify-between items-center";
+          const imgUrl = `https://nft-avatars.fly.dev/${player.username}`;
+          const label = `${player.username} ${
+            player.id === myId ? "<b> (You)</b>" : ""
+          }`;
+
           li.innerHTML = `
-                    <span>${player.username}${
-            player.id === myId ? " (You)" : ""
-          }</span>
-                    <span class="${
-                      player.ready ? "text-green-500" : "text-red-500"
-                    }">${player.ready ? "Ready" : "Not Ready"}</span>
+            <div class="flex items-center gap-2">
+              <img src=${imgUrl} class="w-10 h-10 rounded-full bg-gray-200" />
+              <span>${label}</span>
+            </div>
+            <span 
+              class="${player.ready ? "text-green-500" : "text-red-500"}">
+              ${player.ready ? "Ready" : "Not Ready"}
+            </span>
                 `;
           list.appendChild(li);
         });
