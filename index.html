@@ -63,14 +63,17 @@
           .getElementById("chat-form")
           .addEventListener("submit", (event) => {
             event.preventDefault();
-            socket.send(
-              JSON.stringify({
-                type: "chat_message",
-                data: {
-                  message_text: document.getElementById("message").value,
-                },
-              })
-            );
+            const messageText = document.getElementById("message").value;
+            if (messageText !== "")
+              socket.send(
+                JSON.stringify({
+                  type: "chat_message",
+                  data: {
+                    message_text: messageText,
+                  },
+                })
+              );
+
             document.getElementById("message").value = "";
           });
 
@@ -102,8 +105,10 @@
         style="display: none"
       >
         <h1 class="text-3xl font-bold">Connected</h1>
-        <ul id="players" class="list-disc list-inside"></ul>
-        <div id="chat-box" class="flex-col justify-center w-full max-w-md">
+        <div
+          id="chat-box"
+          class="flex flex-col justify-center w-full max-w-md gap-3"
+        >
           <div
             id="messages-container"
             class="flex flex-col items-center gap-2 h-56 overflow-y-auto"
