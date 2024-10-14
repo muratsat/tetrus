@@ -1,4 +1,4 @@
-# How to deploy on a server
+# How to run
 
 ## 1. Clone the repository
 
@@ -16,29 +16,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 3. Configure systemd service
-
-Create a file `/etc/systemd/system/tetrus.service` with the following content:
-
-```
-[Unit]
-Description=FastAPI Application
-After=network.target
-
-[Service]
-ExecStart=/var/www/tetrus/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
-WorkingDirectory=/var/www/tetrus
-User=root
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Then reload systemd daemon and start the service:
+## 3. Run the server
 
 ```bash
-systemctl daemon-reload
-systemctl start tetrus
-systemctl enable tetrus
+fastapi run
 ```
