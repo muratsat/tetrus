@@ -202,6 +202,46 @@ class Game:
                     if shape[dy][dx] != 0:
                         self.board[y + dy][x + dx] = player.id
 
+    def gravitate_row(self, row: int):
+        current_row = row
+        for y in range(row + 1, self.BOARD_HEIGHT):
+            empty = all(self.board[y][x] == 0 for x in range(self.BOARD_WIDTH))
+            # if empty swap row with current row
+            if empty:
+                self.board[current_row], self.board[y] = self.board[y], self.board[current_row]
+                current_row = y
+
+
+    def _burn_lines(self):
+        for player in self.players.values():
+            if not player.piece:
+                continue
+            shape = player.piece.shape
+            for dy in range(len(shape)):
+                for dx in range(len(shape[dy])):
+                    if shape[dy][dx] != 0:
+                        self.board[player.piece.y + dy][player.piece.x + dx] = 0
+
+        for y in range(self.BOARD_HEIGHT):
+            full = all(self.board[y][x] == 1 for x in range(self.BOARD_WIDTH))
+            if full:
+                for x in range(self.BOARD_WIDTH):
+                    self.board[y][x] = 0
+
+        for y in range(self.BOARD_HEIGHT -1, -1, -1):
+            empty = all(self.board[y][x] == 0 for x in range(self.BOARD_WIDTH))
+            if not empty:
+                self.gravitate_row(y)
+
+        for player in self.players.values():
+            if not player.piece:
+                continue
+            shape = player.piece.shape
+            for dy in range(len(shape)):
+                for dx in range(len(shape[dy])):
+                    if shape[dy][dx] != 0:
+                        self.board[player.piece.y + dy][player.piece.x + dx] = player.id
+
 
     def _update_board(self):
         for player in self.players.values():
@@ -209,6 +249,7 @@ class Game:
                 self._spawn_piece(player.id)
                 continue
         self._gravitate()
+        self._burn_lines()
 
 
     def player_rotate(self, player_id, direction):
@@ -216,7 +257,6 @@ class Game:
             return
         shape = self.players[player_id].piece.shape
         rotated_shape = rotate_clockwise(shape) if direction == CLOCKWISE else rotate_counterclockwise(shape)
-        print("rotate")
 
         for dy in range(len(shape)):
             for dx in range(len(shape[dy])):
