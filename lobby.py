@@ -109,10 +109,6 @@ class Player:
         self.ready = False
         self.piece: Piece | None = None
 
-    # def move(self, direction):
-    #     self.x += directions[direction][0]
-    #     self.y += directions[direction][1]
-
 
 class Game:
     BOARD_WIDTH = 10
@@ -122,11 +118,13 @@ class Game:
         self.state = "IDLE"
         self.players: Dict[str, Player] = {}
 
+
     def start(self):
         self.state = "RUNNING"
         self.board = [[0 for _ in range(self.BOARD_WIDTH)] for _ in range(self.BOARD_HEIGHT)]
         self.game_thread = threading.Thread(target=self._game_loop)
         self.game_thread.start()
+
 
     def current_state(self):
         return {
@@ -147,6 +145,7 @@ class Game:
             self.players[id].x = 0
             self.players[id].y = 0
             self.players[id].ready = False
+            self.players[id].piece = None
 
 
     def _can_place_shape(self, shape, x, y):
@@ -161,6 +160,7 @@ class Game:
                     return False
 
         return True
+
 
     def _spawn_piece(self, player_id):
         cannot_spawn = True
@@ -178,6 +178,7 @@ class Game:
                 break
         if cannot_spawn:
             self._reset_game()
+
 
     def _gravitate(self):
         for player in self.players.values():
@@ -201,6 +202,7 @@ class Game:
                 for dx in range(len(shape[dy])):
                     if shape[dy][dx] != 0:
                         self.board[y + dy][x + dx] = player.id
+
 
     def gravitate_row(self, row: int):
         current_row = row
@@ -302,7 +304,7 @@ class Game:
                     self.board[y + dy][x + dx] += player_id
 
 
-    TICKS_PER_SECOND = 2
+    TICKS_PER_SECOND = 5
     def _game_loop(self):
         self.tick = 0
         while self.state == "RUNNING":
@@ -367,7 +369,7 @@ class Lobby:
                 return
 
             self.game.update_player(client_id, message["data"]["username"], message["data"]["ready"])
-            everyone_ready = all([player.ready for player in self.game.players.values()]) and len(self.game.players) > 1
+            everyone_ready = all([player.ready for player in self.game.players.values()]) # and len(self.game.players) > 1
             if everyone_ready:
                 self.game.state = "READY"
 
